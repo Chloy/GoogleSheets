@@ -4,7 +4,7 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from google.oauth2 import service_account
 # from . import db_creds
-from sqlalchemy import create_engine, Column, Integer, String, DateTime
+from sqlalchemy import create_engine, Column, Integer, String, Date, func
 from sqlalchemy.engine.url import URL
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
@@ -36,8 +36,8 @@ class Purchase(DeclarativeBase):
     id = Column(Integer, primary_key=True)
     number = Column('number', Integer)
     cost_dol = Column('Cost in dollars', Integer)
-    # deliver = Column('Delivery date', DateTime)
-    # cost_rub = Column('Cost in rubles', Integer)
+    deliver = Column('Delivery date', Date, default=func.now())
+    cost_rub = Column('Cost in rubles', Integer)
 
     def __repr__(self):
         return f'{self.number}'
@@ -83,7 +83,7 @@ def main():
     Session = sessionmaker(bind=engine)
     session = Session()
 
-    new_purchase = Purchase(number=1, cost_dol=2)
+    new_purchase = Purchase(number=1, cost_dol=2, cost_rub=120)
     session.add(new_purchase)
     session.commit()
     for prch in session.query(Purchase):
