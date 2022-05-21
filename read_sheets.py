@@ -3,8 +3,8 @@ from __future__ import print_function
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from google.oauth2 import service_account
-# from . import db_creds
-from sqlalchemy import create_engine, Column, Integer, String, Date, func
+import sqlalchemy as sa
+import datetime as dt
 from sqlalchemy.engine.url import URL
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
@@ -16,7 +16,7 @@ SERVICE_ACCOUNT_FILE = 'creds.json'
 
 # The ID and range of a sample spreadsheet.
 SAMPLE_SPREADSHEET_ID = '1ZZGVwnOgCkglTk5WHS6yXQkLNjsolbMmXilCbWsrGuo'
-SAMPLE_RANGE_NAME = 'test!A1:D1'
+SAMPLE_RANGE_NAME = 'test!A2:D'
 
 DATABASE = {
     'drivername': 'postgresql',
@@ -33,11 +33,11 @@ DeclarativeBase = declarative_base()
 class Purchase(DeclarativeBase):
     __tablename__ = 'purchases'
 
-    id = Column(Integer, primary_key=True)
-    number = Column('number', Integer)
-    cost_dol = Column('Cost in dollars', Integer)
-    deliver = Column('Delivery date', Date, default=func.now())
-    cost_rub = Column('Cost in rubles', Integer)
+    id = sa.Column(sa.Integer, primary_key=True)
+    number = sa.Column('number', sa.Integer)
+    cost_dol = sa.Column('Cost in dollars', sa.Integer)
+    deliver = sa.Column('Delivery date', sa.Date, default=sa.func.now())
+    cost_rub = sa.Column('Cost in rubles', sa.Integer)
 
     def __repr__(self):
         return f'{self.number}'
@@ -47,31 +47,28 @@ def main():
     """Shows basic usage of the Sheets API.
     Prints values from a sample spreadsheet.
     """
-    # creds = None
-    # creds = service_account.Credentials.from_service_account_file(
-    #     SERVICE_ACCOUNT_FILE, scopes=SCOPES)
+    creds = None
+    creds = service_account.Credentials.from_service_account_file(
+        SERVICE_ACCOUNT_FILE, scopes=SCOPES)
     
-    # try:
-    #     service = build('sheets', 'v4', credentials=creds)
+    try:
+        service = build('sheets', 'v4', credentials=creds)
 
-    #     # Call the Sheets API
-    #     sheet = service.spreadsheets()
-    #     result = sheet.values().get(spreadsheetId=SAMPLE_SPREADSHEET_ID,
-    #         range=SAMPLE_RANGE_NAME).execute()
+        # Call the Sheets API
+        sheet = service.spreadsheets()
+        result = sheet.values().get(spreadsheetId=SAMPLE_SPREADSHEET_ID,
+            range=SAMPLE_RANGE_NAME).execute()
 
-    #     print(result)
-    #     values = result.get('values', [])
+        values = result.get('values', [])
 
-    #     if not values:
-    #         print('No data found.')
-    #         return
-
-    #     print(values)
+        if not values:
+            print('No data found.')
+            return
         
-    # except HttpError as err:
-    #     print(err)
+    except HttpError as err:
+        print(err)
 
-    engine = create_engine(
+    engine = sa.create_engine(
         'postgresql+psycopg2://{user}:{password}@{host}/{base}'.format(
             user='postgres',
             password='1234',
@@ -83,11 +80,36 @@ def main():
     Session = sessionmaker(bind=engine)
     session = Session()
 
-    new_purchase = Purchase(number=1, cost_dol=2, cost_rub=120)
-    session.add(new_purchase)
-    session.commit()
-    for prch in session.query(Purchase):
-        print(prch)
+    for value in values:
+        query = sa.select(
+            Purchase.id,
+            Purchase.number,
+            Purchase.cost_dol,
+            Purchase.deliver,
+            Purchase.cost_rub
+        ).where(Purchase.id==value[0])
+        exec = session.execute(query).first()
+        if exec is None:
+            date = dt.date(*map(int, value[3].split('.')[::-1]))
+            session.add(
+                Purchase(
+                    id = value[0],
+                    number = value[1],
+                    cost_dol = value[2],
+                    deliver = date,
+                    cost_rub = value[2]
+                )
+            )
+            session.commit()
+        else:
+            value = [*map(int, value[:-1])]\
+                + [dt.date(*map(int, value[3].split('.')[::-1]))]
+            if list(exec[:-1]) != value:
+                pass
+
+            
+
+
 
 
 
