@@ -8,6 +8,8 @@ import datetime as dt
 from sqlalchemy.engine.url import URL
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+import requests
+import xml.etree.ElementTree as ET
 
 
 # If modifying these scopes, delete the file token.json.
@@ -35,9 +37,9 @@ class Purchase(DeclarativeBase):
 
     id = sa.Column(sa.Integer, primary_key=True)
     number = sa.Column('number', sa.Integer)
-    cost_dol = sa.Column('Cost in dollars', sa.Integer)
+    cost_dol = sa.Column('Cost in dollars', sa.Float)
     deliver = sa.Column('Delivery date', sa.Date, default=sa.func.now())
-    cost_rub = sa.Column('Cost in rubles', sa.Integer)
+    cost_rub = sa.Column('Cost in rubles', sa.Float)
 
     def __repr__(self):
         return f'{self.number}'
@@ -79,8 +81,20 @@ def main():
     DeclarativeBase.metadata.create_all(engine)
     Session = sessionmaker(bind=engine)
     session = Session()
+    r = requests.get("https://www.cbr.ru/scripts/XML_daily.asp").text
+    tree = ET.fromstring(r)
+    course = tree.find('./Valute[@ID="R01235"]/Value').text.replace(',', '.')
+    course = float(course)
+    del_list = [id[0] for id in session.query(Purchase.id).all()]
+    
 
     for value in values:
+        if '' in value:
+            continue
+        try:
+            del_list.remove(int(value[0]))
+        except ValueError:
+            pass
         query = sa.select(
             Purchase.id,
             Purchase.number,
@@ -89,23 +103,33 @@ def main():
             Purchase.cost_rub
         ).where(Purchase.id==value[0])
         exec = session.execute(query).first()
+        date = dt.date(*map(int, value[3].split('.')[::-1]))
         if exec is None:
-            date = dt.date(*map(int, value[3].split('.')[::-1]))
             session.add(
                 Purchase(
                     id = value[0],
                     number = value[1],
                     cost_dol = value[2],
                     deliver = date,
-                    cost_rub = value[2]
+                    cost_rub = float(value[2]) * course
                 )
             )
             session.commit()
         else:
             value = [*map(int, value[:-1])]\
-                + [dt.date(*map(int, value[3].split('.')[::-1]))]
+                + [date]
             if list(exec[:-1]) != value:
-                pass
+                print(f'Changed id {value[0]}')
+                pr = session.get(Purchase, value[0])
+                pr.number = value[1]
+                pr.cost_dol = value[2]
+                pr.deliver = date
+                pr.cost_rub = float(value[2]) * course
+                session.commit()
+
+    for id in del_list:
+        session.delete(session.get(Purchase, id))
+    session.commit()
 
             
 
@@ -114,4 +138,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    main() 
