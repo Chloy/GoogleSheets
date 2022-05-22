@@ -10,6 +10,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import requests
 import xml.etree.ElementTree as ET
+import time
 
 
 # If modifying these scopes, delete the file token.json.
@@ -19,16 +20,6 @@ SERVICE_ACCOUNT_FILE = 'creds.json'
 # The ID and range of a sample spreadsheet.
 SAMPLE_SPREADSHEET_ID = '1ZZGVwnOgCkglTk5WHS6yXQkLNjsolbMmXilCbWsrGuo'
 SAMPLE_RANGE_NAME = 'test!A2:D'
-
-DATABASE = {
-    'drivername': 'postgresql',
-    'host': 'localhost',
-    'port': '5432',
-    'username': 'postgres',
-    'password': '1234',
-    'database': 'postgres'
-    }
-
 
 DeclarativeBase = declarative_base()
 
@@ -52,84 +43,105 @@ def main():
     creds = None
     creds = service_account.Credentials.from_service_account_file(
         SERVICE_ACCOUNT_FILE, scopes=SCOPES)
-    
+
     try:
-        service = build('sheets', 'v4', credentials=creds)
-
-        # Call the Sheets API
-        sheet = service.spreadsheets()
-        result = sheet.values().get(spreadsheetId=SAMPLE_SPREADSHEET_ID,
-            range=SAMPLE_RANGE_NAME).execute()
-
-        values = result.get('values', [])
-
-        if not values:
-            print('No data found.')
-            return
-        
-    except HttpError as err:
-        print(err)
+        r = requests.get("https://www.cbr.ru/scripts/XML_daily.asp").text
+    except (requests.ConnectionError,
+    requests.HTTPError,
+    requests.Timeout):
+        print('Не удалось подключиться в ЦБ.')
+        return
+    tree = ET.fromstring(r)
+    course = tree.find('./Valute[@ID="R01235"]/Value').text.replace(',', '.')
+    course = float(course)
 
     engine = sa.create_engine(
         'postgresql+psycopg2://{user}:{password}@{host}/{base}'.format(
             user='postgres',
             password='1234',
-            host='localhost',
+            host='database',
             base='postgres'
         )
     )
     DeclarativeBase.metadata.create_all(engine)
     Session = sessionmaker(bind=engine)
     session = Session()
-    r = requests.get("https://www.cbr.ru/scripts/XML_daily.asp").text
-    tree = ET.fromstring(r)
-    course = tree.find('./Valute[@ID="R01235"]/Value').text.replace(',', '.')
-    course = float(course)
-    del_list = [id[0] for id in session.query(Purchase.id).all()]
-    
 
-    for value in values:
-        if '' in value:
-            continue
+    while(True):
+
         try:
-            del_list.remove(int(value[0]))
-        except ValueError:
-            pass
-        query = sa.select(
-            Purchase.id,
-            Purchase.number,
-            Purchase.cost_dol,
-            Purchase.deliver,
-            Purchase.cost_rub
-        ).where(Purchase.id==value[0])
-        exec = session.execute(query).first()
-        date = dt.date(*map(int, value[3].split('.')[::-1]))
-        if exec is None:
-            session.add(
-                Purchase(
-                    id = value[0],
-                    number = value[1],
-                    cost_dol = value[2],
-                    deliver = date,
-                    cost_rub = float(value[2]) * course
-                )
-            )
-            session.commit()
-        else:
-            value = [*map(int, value[:-1])]\
-                + [date]
-            if list(exec[:-1]) != value:
-                print(f'Changed id {value[0]}')
-                pr = session.get(Purchase, value[0])
-                pr.number = value[1]
-                pr.cost_dol = value[2]
-                pr.deliver = date
-                pr.cost_rub = float(value[2]) * course
-                session.commit()
+            service = build('sheets', 'v4', credentials=creds)
 
-    for id in del_list:
-        session.delete(session.get(Purchase, id))
-    session.commit()
+            # Call the Sheets API
+            sheet = service.spreadsheets()
+            result = sheet.values().get(spreadsheetId=SAMPLE_SPREADSHEET_ID,
+                range=SAMPLE_RANGE_NAME).execute()
+
+            values = result.get('values', [])
+
+            if not values:
+                print('No data found.')
+                return
+            
+        except HttpError as err:
+            print(err)
+        del_list = [id[0] for id in session.query(Purchase.id).all()]
+
+        for value in values:
+            if '' in value:
+                continue
+            try:
+                del_list.remove(int(value[0]))
+            except ValueError:
+                pass
+            except IndexError:
+                continue
+            try:
+                date = dt.date(*map(int, value[3].split('.')[::-1]))
+                int(value[0])
+                int(value[1])
+                float(value[2])
+            except ValueError as e:
+                print(f'Invalid data in № {value[0]}, {e}')
+                continue
+            query = sa.select(
+                Purchase.id,
+                Purchase.number,
+                Purchase.cost_dol,
+                Purchase.deliver,
+                Purchase.cost_rub
+            ).where(Purchase.id==value[0])
+            exec = session.execute(query).first()
+
+            if exec is None:
+                session.add(
+                    Purchase(
+                        id = value[0],
+                        number = value[1],
+                        cost_dol = value[2],
+                        deliver = date,
+                        cost_rub = round(float(value[2]) * course, 2)
+                    )
+                )
+                session.commit()
+            else:
+                value = [*map(int, value[:-2])]\
+                    + [float(value[-2])]\
+                    + [date]
+                if list(exec[:-1]) != value:
+                    print(f'Changed id {value[0]}')
+                    pr = session.get(Purchase, value[0])
+                    pr.number = value[1]
+                    pr.cost_dol = value[2]
+                    pr.deliver = date
+                    pr.cost_rub = round(float(value[2]) * course, 2)
+                    session.commit()
+
+        for id in del_list:
+            session.delete(session.get(Purchase, id))
+        session.commit()
+        print(f'Updated {dt.datetime.now().strftime("%H:%M:%S")}')
+        time.sleep(15)
 
             
 
