@@ -85,7 +85,7 @@ def main():
         # Create list of already exists instances to determine which to delete in the end
         del_list = [id[0] for id in session.query(Purchase.id).all()]
 
-        for value in values:
+        for i, value in enumerate(values):
             # Skip instance if it has empty cells
             if '' in value:
                 continue
@@ -102,7 +102,7 @@ def main():
                 int(value[1])
                 float(value[2])
             except ValueError as e:
-                print(f'Invalid data in № {value[0]}, {e}')
+                print(f'Invalid data in {i} line: {e}')
                 continue
             query = sa.select(
                 Purchase.id,
