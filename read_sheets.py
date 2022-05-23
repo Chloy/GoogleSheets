@@ -102,7 +102,7 @@ def main():
                 int(value[1])
                 float(value[2])
             except ValueError as e:
-                print(f'Invalid data in {i} line: {e}')
+                print(f'Invalid data in {i+2} line: {e}')
                 continue
             query = sa.select(
                 Purchase.id,
