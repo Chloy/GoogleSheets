@@ -19,4 +19,4 @@
 - ```\c postgres``` подключение к базе postgres
 - ```select * from purchases;``` будут выведены все записи из таблицы.
 Чтобы выйти двады введите ```exit```
-3. Чтобы остановить контейнеры выполните ```docker-compose up --build -d```(или же ```docker compose up --build -d```) из директории с файлом docker-compose.yml
+3. Чтобы остановить контейнеры выполните ```docker-compose stop```(или же ```docker compose stop```) из директории с файлом docker-compose.yml
