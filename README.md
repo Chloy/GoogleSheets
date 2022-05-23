@@ -10,7 +10,7 @@ Table: purchases
 
 
 #### Инструкция по запуску
-1. Нужно запустить команду ```docker-compose up --build -d``` из директории с файлом docker-compose.yml
+1. Нужно запустить команду ```docker-compose up --build -d``` (в зависимости от вашей версии docker вам может не подойти данная команда, тогда попробуйте эту ```docker compose up --build -d```) из директории с файлом docker-compose.yml
 2. Чтобы проверить БД нужно выполнить команды:
 - ```docker exec -it psql /bin/bash``` вы попадете в контейнер с БД
 - ```psql -U postgres``` подключение к БД
