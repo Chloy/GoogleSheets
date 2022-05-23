@@ -2,6 +2,8 @@
 ---
 Файл GoogleSheets https://docs.google.com/spreadsheets/d/1ZZGVwnOgCkglTk5WHS6yXQkLNjsolbMmXilCbWsrGuo/edit#gid=0
 
+Скрипт работает постоянно и каждые 15 секунд обновляет данные в БД в соответствии с таблицей.
+
 Данные для подключения к БД стандартные:
 - User: postgres
 - Password:
@@ -18,4 +20,3 @@
 - ```select * from purchases;``` будут выведены все записи из таблицы.
 Чтобы выйти двады введите ```exit```
 3. Чтобы остановить контейнеры выполните ```docker-compose up --build -d```(или же ```docker compose up --build -d```) из директории с файлом docker-compose.yml
-Скрипт работает постоянно и каждые 15 секунд обновляет данные в БД в соответствии с таблицей.
